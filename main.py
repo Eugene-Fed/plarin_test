@@ -3,10 +3,11 @@ from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 import asyncio
 import motor.motor_asyncio
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection, AsyncIOMotorCursor
 from pydantic import BaseModel
 
 app = FastAPI()
-# TODO - убрать из харкода. Набор констант для тестов
+# TODO - вынести эти параметры в файл настроек/.env/PATH
 CLIENT_URI = r'mongodb://localhost:27017/'
 DB_NAME = r'plarin_test'
 COLLECTION_NAME = r'employees_test'
@@ -21,8 +22,14 @@ _collection = None
 
 class ConnectionToDB:
     # TODO - Создать объект подключения к БД
-    # _collection: motor.motor_asyncio.AsyncIOMotorCollection = _db[collection_name]
-    pass
+
+    def __init__(self):
+        self.client: AsyncIOMotorClient = None
+        self.db: AsyncIOMotorDatabase = None
+        self.collection: AsyncIOMotorCollection = None
+
+    async def get_db_connection(self, client_uri: str) -> AsyncIOMotorClient:
+        self.client = await AsyncIOMotorClient(client_uri)
 
 
 class Collection(ConnectionToDB):
@@ -75,22 +82,27 @@ async def shutdown():
     disconnect_from_db()
 
 
-@app.get('/')
-async def search_employees(company: str, min_age: int, max_age: int):
+@app.get('/search/employees')
+async def search_employees(company: str, salary: int = None, limit: int = None):
     # TODO - Переписать передачу параметров через класс `pydantic`
     # TODO - Реализовать более сложные фильтры с использованием разных методов `mongodb` вроде `.sort()`, `.limit()`
+    query = {'company': company}
+
+    """Вместо того, чтобы убрать лишь столбец `_id`, мы перечисляем все НЕОБХОДИМЫЕ столбцы.
+    Это послужит защитой от передачи по ошибке чувствительных данных (номер карты, хеш пароля)."""
+    # TODO - реализовать передачу через параметры только необходимых полей БД
+    columns = {'_id': 0, 'name': 1, 'email': 1, 'age': 1, 'company': 1, 'join_date': 1, 'job_title': 1,
+               'gender': 1, 'salary': 1}
+    search_filter = _collection.find(query, columns)
+    # TODO - реализовать возможность фильтрации по всем или лишь по некоторым полям на выбор
+    if limit:
+        search_filter = search_filter.limit(limit)
 
     employees = []
     try:
-        '''
-        get_filter = find({quert})
-        if sort:
-            get_filter = get_filter.sort()
-        if limit:
-            get_filter = get_filter.limit()
-        '''
 
-        employees = [employee for employee in await _collection.find({'company': company}, {'_id': 0}).to_list(None)]
+        # employees = [employee for employee in await _collection.find({'company': company}, {'_id': 0}).to_list(None)]
+        employees = [employee for employee in await search_filter.to_list(None)]
         print(f'Number of found Employers: {len(employees)}')
     except ServerSelectionTimeoutError:
         print('Server Selection Timeout Error')
