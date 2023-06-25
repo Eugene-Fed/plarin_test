@@ -28,13 +28,38 @@ class ConnectionToDB:
         self.db: AsyncIOMotorDatabase = None
         self.collection: AsyncIOMotorCollection = None
 
-    async def get_db_connection(self, client_uri: str) -> AsyncIOMotorClient:
-        self.client = await AsyncIOMotorClient(client_uri)
+    async def get_db_connection(self, client_uri: str, db_name: str = None,
+                                collection_name: str = None) -> AsyncIOMotorClient:
+        if self.client is None:
+            self.client = await AsyncIOMotorClient(client_uri)
+        if db_name:
+            self.db = self.client[db_name]
+            if collection_name:
+                self.collection = self.db[collection_name]
 
+        print('Server connection was opened')
+        return self.client
 
-class Collection(ConnectionToDB):
-    # TODO - Создать объект Коллекции БД
-    pass
+    async def get_collection(self, collection_name: str,
+                             db_name: str = None, client_uri: str = None) -> AsyncIOMotorCollection:
+        """
+        Получаем ранее созданный объект коллекции или же генерим и сохраняем его в экземпляре класса. Во втором случае
+        необходимо передать еще и параметры для создания подключения к БД.
+        :param collection_name:
+        :param db_name:
+        :param client_uri:
+        :return:
+        """
+        if self.client is None and client_uri:  # Если мы ранее не создали подключение к БД, можем сделать это прямо тут
+            self.client = await self.get_db_connection(client_uri, db_name, collection_name)
+
+        self.collection = self.client[db_name][collection_name]
+        return self.collection
+
+    async def disconnect_from_db(self):
+        if self.client is not None:
+            await self.client.close()
+            print('Server connection was closed')
 
 
 # TODO - Сделать эту функцию методом класса `ConnectionToDB`
