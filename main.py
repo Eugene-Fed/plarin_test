@@ -4,20 +4,16 @@ from pymongo.errors import ServerSelectionTimeoutError
 import asyncio
 import motor.motor_asyncio
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection, AsyncIOMotorCursor
-from pydantic import BaseModel
+from pydantic import BaseModel, BaseSettings, Field
+import dotenv
+from pathlib import Path
 
-app = FastAPI()
-# TODO - вынести эти параметры в файл настроек/.env/PATH
-CLIENT_URI = r'mongodb://localhost:27017/'
-DB_NAME = r'plarin_test'
-COLLECTION_NAME = r'employees_test'
 
-QUERY = {'company': 'Yandex'}
-
-# TODO - заменить использование глобальных переменных на классы `ConnetcionToDB` и `Collection`.
-_client = None
-_db = None
-_collection = None
+class Settings(BaseSettings):
+    app_name: str = 'GetEmployees'
+    client_uri: str
+    db_name: str
+    collection_name: str
 
 
 class ConnectionToDB:
@@ -62,8 +58,25 @@ class ConnectionToDB:
             print('Server connection was closed')
 
 
+# Вместо того чтобы прописать в `Settings` вложенный класс `Config`, проверяем наличие файла `.env` при инициализации.
+if Path('.env').is_file():
+    settings = Settings(_env_file='.env', _env_file_encoding='utf-8')
+else:
+    settings = Settings()
+
+app = FastAPI()
+
+
+QUERY = {'company': 'Yandex'}
+
+# TODO - заменить использование глобальных переменных на классы `ConnetcionToDB` и `Collection`.
+_client = None
+_db = None
+_collection = None
+
+
 # TODO - Сделать эту функцию методом класса `ConnectionToDB`
-def connect_to_db(client_uri=CLIENT_URI, db_name=DB_NAME, collection_name=COLLECTION_NAME):
+def connect_to_db(client_uri=settings.client_uri, db_name=settings.db_name, collection_name=settings.collection_name):
     """
     Подключение к заданное коллекции БД
     :param client_uri:
