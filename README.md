@@ -5,11 +5,11 @@ CLIENT_URI
 DB_NAME  
 COLLECTION_NAME  
 
-Наиболее простой способ добавить их в файл с именем `.env` в корне проекта вида:  
+Наиболее простой способ - добавить в корень проекта файл с именем `.env`, который содержит строки:  
 `  
-CLIENT_URI=mongodb://localhost:27017/  
-DB_NAME="My_DB"  
-COLLECTION_NAME="Employees"
+CLIENT_URI='mongodb://localhost:27017/'  
+DB_NAME='My_DB'  
+COLLECTION_NAME='Employees'
 `  
-или указать их в командной строке перед запуском веб-приложения  
+или перечислить переменные в командной строке перед запуском веб-приложения  
 `CLIENT_URI="mongodb://localhost:27017/" DB_NAME="My_DB" COLLECTION_NAME="Employees" uvicorn main:app --reload`  
