@@ -4,7 +4,6 @@ import motor.motor_asyncio
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
 from pydantic import BaseModel, BaseSettings, Field
 from pathlib import Path
-from datetime import datetime
 
 
 class Settings(BaseSettings):
@@ -28,7 +27,7 @@ class SearchModel(BaseModel):
     limit: int | None = Field(default=None, gt=0)                       # Лимит количества данных в выдаче
     name: str | None = None
     email: str | None = None                                            # TODO - валидировать формат почты
-    join_date: str | datetime | None = None                             # TODO - валидировать формат даты
+    join_date: str | None = None                                        # TODO - валидировать формат даты
     job_title: str | list[str] | None = None
     gender: str = Field(default=None, description='One of ["male" | "female" | "other"]')
     min_salary: int | float | None = Field(default=None, gt=0)
@@ -42,7 +41,7 @@ class ReturnModel(BaseModel):
     email: str
     age: int
     company: str
-    join_date: str | datetime = Field(description='Date time in "yyyy-MM-eeThh:mm:ssTZD" format')
+    join_date: str = Field(description='Date time in "yyyy-MM-ddThh:mm:ssTZD" format')
     job_title: str
     gender: str = Field(description='One of ["male" | "female" | "other"]')
     salary: int
@@ -120,7 +119,7 @@ def connect_to_db(client_uri=settings.client_uri, db_name=settings.db_name, coll
     :param client_uri:
     :param db_name:
     :param collection_name:
-    :return:
+    :return: None
     """
     global _client
     global _db
@@ -146,25 +145,41 @@ def disconnect_from_db(client=_client):
             print(e)
 
 
-def get_filter_by_digit(min_val: int | float = None,
-                        max_val: int | float = None,
+def get_filter_by_range(min_val: int | float | str = None,
+                        max_val: int | float | str = None,
                         ) -> dict[str, int | float]:
     """
     Функция для форматирования числового фильтра.
     :param min_val: Минимальное значение.
     :param max_val: Максимальное значение.
+    :return: Словарь с фильтром запроса к MongoDB.
+    """
+    query = {}
+
+    if min_val and min_val.isnumeric() and max_val and max_val.isnumeric() and min_val > max_val:
+        # Меняем числа местами, если `min_val` > `max_val`
+        min_val, max_val = max_val, min_val
+
+    if min_val:
+        query['$gte'] = min_val
+
+    if max_val:
+        query['$lte'] = max_val
+
+    return query
+
+
+def get_filter_by_string(name: str, value: str) -> dict[str, str]:
+    """
+    Формируем часть запроса из текстовых или фильтров с возможностью обработки списка значений одного параметра.
+    # TODO - Реализовать возможность принимать список значений в один параметр.
+    :param name:
+    :param value:
     :return:
     """
     query = {}
-    if min_val and max_val and min_val > max_val:
-        min_val, max_val = max_val, min_val                             # Защита от дурака
-
-    if min_val:
-        query['$gt'] = min_val - 1          # Вычитаем единицу, т.к. функция mongodb возвращает значение БОЛЬШЕ
-
-    if max_val:
-        query['$lt'] = max_val + 1          # Добавляем единицу по аналогии с `min_age`
-
+    if value is not None:
+        query[name] = value
     return query
 
 
@@ -186,21 +201,41 @@ async def search_employees(company: str = None,
                            max_age: int = None,
                            min_salary: int = None,
                            max_salary: int = None,
+                           job_title: str = None,
+                           gender: str = None,
+                           start_join_date: str = None,
+                           end_join_date: str = None,
                            limit: int = None) -> list[ReturnModel]:
+    """
+    Доступ к списку сотрудников. Формат выдачи описан ниже на странице документации в модуле `Schemas` / `ReturnModel`\n
+    :param company: Название компании\n
+    :param min_age: Минимальный возраст (включительно)\n
+    :param max_age: Максимальный возраст (включительно)\n
+    :param min_salary: Минимальная ЗП (включительно)\n
+    :param max_salary: Максимальная ЗП (включительно)\n
+    :param job_title: Должность\n
+    :param gender: Один из вариантов: `male`, `female`, `other`\n
+    :param start_join_date: Дата и время в формате `yyyy-MM-ddThh:mm:ssTZD`. Также работает формат `yyyy-MM-dd`\n
+    :param end_join_date: Дата и время в формате `yyyy-MM-ddThh:mm:ssTZD`. Также работает формат `yyyy-MM-dd`\n
+    :param limit: Количество данных в выдаче\n
+    :return: Возвращаем список `JSON` объектов БД
+    """
     # TODO - Реализовать Аутентификацию.
-    # TODO - Реализовать фильтр по списку значений: Пол, Должность, Компания.
+    # TODO - Реализовать фильтр по списку значений для полей: Компания, Пол, Должность.
     # TODO - Реализовать фильтр по дате устройства на работу с валидацией формата данных.
-    # TODO - Реализовать фильтр с использованием сортировки по необходимым полям.
-    """Обработка фильтра по компании"""
     query = {}
-    if company:
-        query['company'] = company
+
+    """Обработка фильтра по строковым значениям"""
+    for key, value in {'company': company, 'job_title': job_title, 'gender': gender}.items():
+        query.update(get_filter_by_string(name=key, value=value))
 
     """Обработка фильтра по числовым диапазонам"""
     if min_age or max_age:
-        query['age'] = get_filter_by_digit(min_val=min_age, max_val=max_age)
+        query['age'] = get_filter_by_range(min_val=min_age, max_val=max_age)
     if min_salary or max_salary:
-        query['salary'] = get_filter_by_digit(min_val=min_salary, max_val=max_salary)
+        query['salary'] = get_filter_by_range(min_val=min_salary, max_val=max_salary)
+    if start_join_date or end_join_date:
+        query['join_date'] = get_filter_by_range(min_val=start_join_date, max_val=end_join_date)
 
     """Вместо того, чтобы убрать лишь столбец `_id`, мы перечисляем все НЕОБХОДИМЫЕ столбцы.
     Это послужит защитой от передачи по ошибке чувствительных данных (номер карты, хеш пароля и т.п.)."""
@@ -212,6 +247,8 @@ async def search_employees(company: str = None,
     """Добавление лимитера по количеству данных в выдаче"""
     if limit:
         search_filter = search_filter.limit(limit)
+
+    # TODO - Реализовать фильтр с использованием сортировки по необходимым полям.
 
     employees = []
     try:
