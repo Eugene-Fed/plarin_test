@@ -1,8 +1,7 @@
-from typing import Annotated
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from pymongo.errors import ServerSelectionTimeoutError
 import motor.motor_asyncio
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection, AsyncIOMotorCursor
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
 from pydantic import BaseModel, BaseSettings, Field
 from pathlib import Path
 from datetime import datetime
@@ -46,9 +45,9 @@ class ReturnModel(BaseModel):
     email: str
     age: int
     company: str
-    join_date: str | datetime
+    join_date: str | datetime = Field(description='Date time in "yyyy-MM-eeThh:mm:ssTZD" format')
     job_title: str
-    gender: str = Field(default=None, description='One of ["male" | "female" | "other"]')
+    gender: str = Field(description='One of ["male" | "female" | "other"]')
     salary: int
 
 
@@ -150,6 +149,10 @@ def disconnect_from_db(client=_client):
             print(e)
 
 
+def get_filter_by_digit(min_val: int | float = None, max_val: int | float = None) -> dict[str, int | float]:
+    query = {}
+    return query
+
 @app.on_event("startup")
 async def startup():
     # TODO - Заменить на использование метода `DbConnection.get_connection()`.
@@ -168,15 +171,20 @@ async def search_employees(company: str = None,
                            max_age: int = None,
                            limit: int = None) -> list[ReturnModel]:
     # TODO - Реализовать Аутентификацию.
+    # TODO - Реализовать фильтры по зарплате (вынести в отдельную функцию и использовать для числовых фильтров)
+    # TODO - Реализовать фильтр по списку значений: пол, должность, список компаний.
     # TODO - Реализовать фильтр с использованием сортировки по необходимым полям.
+    """Обработка фильтра по компании"""
     query = {}
     if company:
         query['company'] = company
 
+    """Обработка фильтра по возрасту"""
+    # TODO - реализовать это в виде отдельной функции и использовать в т.ч. для фильтра по ЗП
+    query_age = {}
     if min_age and max_age and min_age > max_age:               # Защита от дурака
         min_age, max_age = max_age, min_age
 
-    query_age = {}
     if min_age:
         query_age['$gt'] = min_age - 1          # Вычитаем единицу, т.к. функция mongodb возвращает значение БОЛЬШЕ
 
