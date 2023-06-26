@@ -149,6 +149,12 @@ def disconnect_from_db(client=_client):
 def get_filter_by_digit(min_val: int | float = None,
                         max_val: int | float = None,
                         ) -> dict[str, int | float]:
+    """
+    Функция для форматирования числового фильтра.
+    :param min_val: Минимальное значение.
+    :param max_val: Максимальное значение.
+    :return:
+    """
     query = {}
     if min_val and max_val and min_val > max_val:
         min_val, max_val = max_val, min_val                             # Защита от дурака
@@ -182,16 +188,15 @@ async def search_employees(company: str = None,
                            max_salary: int = None,
                            limit: int = None) -> list[ReturnModel]:
     # TODO - Реализовать Аутентификацию.
-    # TODO - Реализовать фильтры по зарплате (вынести в отдельную функцию и использовать для числовых фильтров)
-    # TODO - Реализовать фильтр по списку значений: пол, должность, список компаний.
+    # TODO - Реализовать фильтр по списку значений: Пол, Должность, Компания.
+    # TODO - Реализовать фильтр по дате устройства на работу с валидацией формата данных.
     # TODO - Реализовать фильтр с использованием сортировки по необходимым полям.
     """Обработка фильтра по компании"""
     query = {}
     if company:
         query['company'] = company
 
-    """Обработка фильтра по возрасту"""
-    # TODO - реализовать это в виде отдельной функции и использовать в т.ч. для фильтра по ЗП
+    """Обработка фильтра по числовым диапазонам"""
     if min_age or max_age:
         query['age'] = get_filter_by_digit(min_val=min_age, max_val=max_age)
     if min_salary or max_salary:
@@ -204,6 +209,7 @@ async def search_employees(company: str = None,
                'gender': 1, 'salary': 1}
     search_filter = _collection.find(query, columns)
 
+    """Добавление лимитера по количеству данных в выдаче"""
     if limit:
         search_filter = search_filter.limit(limit)
 
@@ -212,9 +218,8 @@ async def search_employees(company: str = None,
         employees = [ReturnModel(**employee) for employee in await search_filter.to_list(None)]
         print(f'Number of found Employers: {len(employees)}')
     except ServerSelectionTimeoutError:
-        print('Server Selection Timeout Error')
+        raise HTTPException(status_code=504, detail="Server connection Timeout Error")
     except Exception as e:
-        print(e)
-        # todo - return `500`
+        raise HTTPException(status_code=500, detail=e)
 
     return employees
