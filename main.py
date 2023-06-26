@@ -6,10 +6,6 @@ from pydantic import BaseModel, BaseSettings, Field
 from pathlib import Path
 from datetime import datetime
 
-# from pymongo import MongoClient
-# import dotenv
-# import asyncio
-
 
 class Settings(BaseSettings):
     """
@@ -41,6 +37,7 @@ class SearchModel(BaseModel):
 
 
 class ReturnModel(BaseModel):
+    """Дата класс, представляющий формат возвращаемых данных"""
     name: str
     email: str
     age: int
@@ -102,7 +99,7 @@ class DbConnection:
             print('Connection not set')
 
 
-# Вместо того чтобы прописать в `Settings` вложенный класс `Config`, проверяем наличие файла `.env` при инициализации.
+# Вместо того чтобы прописать в `Settings` вложенный класс `Config`, используем `.env` только при его наличии
 if Path('.env').is_file():
     settings = Settings(_env_file='.env', _env_file_encoding='utf-8')
 else:
@@ -149,9 +146,21 @@ def disconnect_from_db(client=_client):
             print(e)
 
 
-def get_filter_by_digit(min_val: int | float = None, max_val: int | float = None) -> dict[str, int | float]:
+def get_filter_by_digit(min_val: int | float = None,
+                        max_val: int | float = None,
+                        ) -> dict[str, int | float]:
     query = {}
+    if min_val and max_val and min_val > max_val:
+        min_val, max_val = max_val, min_val                             # Защита от дурака
+
+    if min_val:
+        query['$gt'] = min_val - 1          # Вычитаем единицу, т.к. функция mongodb возвращает значение БОЛЬШЕ
+
+    if max_val:
+        query['$lt'] = max_val + 1          # Добавляем единицу по аналогии с `min_age`
+
     return query
+
 
 @app.on_event("startup")
 async def startup():
@@ -169,6 +178,8 @@ async def shutdown():
 async def search_employees(company: str = None,
                            min_age: int = None,
                            max_age: int = None,
+                           min_salary: int = None,
+                           max_salary: int = None,
                            limit: int = None) -> list[ReturnModel]:
     # TODO - Реализовать Аутентификацию.
     # TODO - Реализовать фильтры по зарплате (вынести в отдельную функцию и использовать для числовых фильтров)
@@ -181,18 +192,10 @@ async def search_employees(company: str = None,
 
     """Обработка фильтра по возрасту"""
     # TODO - реализовать это в виде отдельной функции и использовать в т.ч. для фильтра по ЗП
-    query_age = {}
-    if min_age and max_age and min_age > max_age:               # Защита от дурака
-        min_age, max_age = max_age, min_age
-
-    if min_age:
-        query_age['$gt'] = min_age - 1          # Вычитаем единицу, т.к. функция mongodb возвращает значение БОЛЬШЕ
-
-    if max_age:
-        query_age['$lt'] = max_age + 1          # Добавляем единицу по аналогии с `min_age`
-
-    if query_age:
-        query['age'] = query_age
+    if min_age or max_age:
+        query['age'] = get_filter_by_digit(min_val=min_age, max_val=max_age)
+    if min_salary or max_salary:
+        query['salary'] = get_filter_by_digit(min_val=min_salary, max_val=max_salary)
 
     """Вместо того, чтобы убрать лишь столбец `_id`, мы перечисляем все НЕОБХОДИМЫЕ столбцы.
     Это послужит защитой от передачи по ошибке чувствительных данных (номер карты, хеш пароля и т.п.)."""
