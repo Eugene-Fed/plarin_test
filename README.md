@@ -40,5 +40,5 @@ docker run -d --name plarin_test -d plarin_test:tag
 - [ ] Добавить аутентификацию.
 
 ## TUTORIALS
-https://github.com/tiangolo/fastapi/issues/50 - Способ передачи списка значений в параметр запроса.
+https://github.com/tiangolo/fastapi/issues/50 - Способ передачи списка значений в параметр запроса.  
 https://tsmx.net/docker-local-mongodb/ - Подключение Докер-контейнера к локально запущенной MongoDB.
