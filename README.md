@@ -24,9 +24,10 @@ uvicorn main:app --reload
 ### Запуск из `Docker`:
 Предварительно необходимо указать переменные окружения в файл `docker/_env` - он и будет использован для создания файла `.env`.
 ```
-docker build -t plarin_test:tag docker/
-docker run --name plarin_test -d --network host plarin_test:tag
-```
+docker build -t plarin_test:tag .
+docker run -d -p 27017:27017 --name plarin_test -d plarin_test:tag
+```  
+При необходимости - заменить сопоставление портов `27017:27017`, где первый - порт запускающей системы, а второй - порт контейнера.  
 
 ## TODO
 - [x] Добавить фильтр по числовым диапазонам (*Возраст*, *Зарплата*)
