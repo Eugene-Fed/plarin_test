@@ -1,6 +1,7 @@
+import motor.motor_asyncio
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from pymongo.errors import ServerSelectionTimeoutError
-import motor.motor_asyncio
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
 from pydantic import BaseModel, BaseSettings, Field
 from pathlib import Path
@@ -156,7 +157,9 @@ def get_filter_by_range(min_val: int | float | str = None,
     """
     query = {}
 
-    if min_val and min_val.isnumeric() and max_val and max_val.isnumeric() and min_val > max_val:
+    if min_val and type(min_val) == (int or float) \
+            and max_val and type(max_val) == (int or float)\
+            and min_val > max_val:
         # Меняем числа местами, если `min_val` > `max_val`
         min_val, max_val = max_val, min_val
 
@@ -256,7 +259,11 @@ async def search_employees(company: str = None,
         print(f'Number of found Employers: {len(employees)}')
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=504, detail="Server connection Timeout Error")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=e)
+    # except Exception as e:
+    #    raise HTTPException(status_code=500, detail=e)
 
     return employees
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000)
