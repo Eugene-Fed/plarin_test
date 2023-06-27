@@ -9,11 +9,11 @@
 Наиболее простой способ - добавить в корень проекта файл с именем `.env`, который содержит строки:  
 ```  
 CLIENT_URI='mongodb://127.0.0.1:27017/'  
-DB_NAME='My_DB'  
-COLLECTION_NAME='Employees'
+DB_NAME='db_name'  
+COLLECTION_NAME='collection_name'
 ```  
 Или задать переменные в командной строке при запуске сервера:  
-`CLIENT_URI="mongodb://localhost:27017/" DB_NAME="My_DB" COLLECTION_NAME="Employees" uvicorn main:app --reload`  
+`CLIENT_URI="mongodb://localhost:27017/" DB_NAME="db_name" COLLECTION_NAME="collection_name" uvicorn main:app --reload`  
 
 ### Запуск из консоли
 ```
@@ -25,9 +25,10 @@ uvicorn main:app --reload
 Предварительно необходимо указать переменные окружения в файл `docker/_env` - он и будет использован для создания файла `.env`.
 ```
 docker build -t plarin_test:tag .
-docker run -d -p 27017:27017 --name plarin_test -d plarin_test:tag
+docker run -d --name plarin_test -d plarin_test:tag
 ```  
-При необходимости - заменить сопоставление портов `27017:27017`, где первый - порт запускающей системы, а второй - порт контейнера.  
+При необходимости - указать сопоставление портов `-p 8081:8000`, где `8000` - порт к которому подключается *uvicorn* внутри контейнера, а `8081` - потенциально не занятый порт системы.  
+`docker run -d -p 8081:8000 --name plarin_test -d plarin_test:tag`
 
 ## TODO
 - [x] Добавить фильтр по числовым диапазонам (*Возраст*, *Зарплата*)
