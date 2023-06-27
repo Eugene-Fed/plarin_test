@@ -128,7 +128,7 @@ def connect_to_db(client_uri=settings.client_uri, db_name=settings.db_name, coll
         _client = motor.motor_asyncio.AsyncIOMotorClient(client_uri)
         _db = _client[db_name]
         _collection = _db[collection_name]
-        print('Server connection was opened')
+
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=504, detail="Server connection Timeout Error")
     except Exception as e:
