@@ -21,20 +21,20 @@ class SearchModel(BaseModel):
     """
     ## Используем для получения данных посредством POST запроса.
     """
-    company: str | list[str] | None = Field(default=None, description='Название компании')
+    company: str | None = Field(default=None, description='Название компании')
     min_age: int | None = Field(default=None)                     # Минимальный возраст
     max_age: int | None = Field(default=None)                     # Максимальный возраст
     limit: int | None = Field(default=None, description='Лимит результатов выдачи')  # Лимит количества данных в выдаче
     name: str | None = None
-    email: str | None = None                                            # TODO - валидировать формат почты
-    start_join_date: str | None = None                                  # TODO - валидировать формат даты
-    end_join_date: str | None = None
-    job_title: str | list[str] | None = None
-    gender: str = Field(default=None, description='Одно из значений: ["male" | "female" | "other"]')
+    email: str | None = None
+    start_join_date: str | None = Field(default=None, description='Дата в формате: `yyyy-MM-dd`')
+    end_join_date: str | None = Field(default=None, description='Дата в формате: `yyyy-MM-dd`')
+    job_title: str | None = None
+    gender: str = Field(default=None, description='Одно из значений: `male`, `female`, `other`')
     min_salary: int | float | None = Field(default=None)
     max_salary: int | float | None = Field(default=None)
-    sort_by: str | None = Field(default=None, description='Имя поля сортировки. Работает как с числом, так и текстом')
-    sort_type: str | None = Field(default=None, description='"asc": По возрастанию (default), "desc": по убыванию')
+    sort_by: str | None = Field(default=None, description='Имя поля сортировки. Работает с любым полем (число и текст')
+    sort_type: str | None = Field(default=None, description='`asc`: По возрастанию (default), `desc`: по убыванию')
 
 
 class ReturnModel(BaseModel):
@@ -43,13 +43,14 @@ class ReturnModel(BaseModel):
     email: str
     age: int
     company: str
-    join_date: str = Field(description='Дата в формате: "yyyy-MM-ddThh:mm:ssTZD".')
+    join_date: str = Field(description='Дата в формате: `yyyy-MM-ddThh:mm:ssTZD`')
     job_title: str
-    gender: str = Field(description='Одно из значений ["male" | "female" | "other"]')
-    salary: int = Field(description='Долларов в Месяц =)')
+    gender: str = Field(description='Одно из значений `male`, `female`, `other`')
+    salary: int = Field(description='Зарплата в USD в Месяц =)')
 
 
 class DbConnection:
+    """ПОКА НЕ ИСПОЛЬЗУЕТСЯ"""
     # TODO - Протестировать этот класс взамен использования глобальных переменных `_client`, `_db`, `_collection`
 
     def __init__(self, client_uri: str, db_name: str, collection_name: str):
@@ -109,9 +110,9 @@ else:
 app = FastAPI()
 
 # TODO - заменить использование глобальных переменных на класс `DbConnection`.
-_client = None
-_db = None
-_collection = None
+_client: AsyncIOMotorClient = None
+_db: AsyncIOMotorDatabase = None
+_collection: AsyncIOMotorCollection = None
 
 
 # TODO - заменить использование этой функции на метод `DbConnection.get_connection()`.
@@ -179,7 +180,7 @@ def get_filter_by_string(name: str, value: str) -> dict:
     # TODO - Реализовать возможность принимать список значений в один параметр.
     :param name:
     :param value:
-    :return:
+    :return: Результат выполнения метода AsyncIOMotorCollection.find()
     """
     query = {}
     if value is not None:
@@ -255,7 +256,7 @@ async def search_by_get(company: str = None,
                         sort_type: str = None,
                         limit: int = None) -> list[ReturnModel]:
     """
-    Доступ к списку сотрудников. Формат выдачи описан ниже на странице документации в модуле `Schemas` / `ReturnModel`\n
+    ## Доступ к списку сотрудников через GET-запрос. Формат выдачи описан ниже модуле `Schemas` / `ReturnModel`\n
     :param company: Название компании\n
     :param min_age: Минимальный возраст (включительно)\n
     :param max_age: Максимальный возраст (включительно)\n
@@ -265,64 +266,47 @@ async def search_by_get(company: str = None,
     :param gender: Один из вариантов: `male`, `female`, `other`\n
     :param start_join_date: Дата и время в формате `yyyy-MM-ddThh:mm:ssTZD`. Также работает формат `yyyy-MM-dd`\n
     :param end_join_date: Дата и время в формате `yyyy-MM-ddThh:mm:ssTZD`. Также работает формат `yyyy-MM-dd`\n
-    :param sort_by: Поле, по которому необходимо делать сортировку. На выбор: [age | join_date | salary] \n
-    :param sort_type: Направление сортировки: asc - по возрастанию (по-умолчанию) или desc - по убыванию.\n
+    :param sort_by: Поле, по которому необходимо делать сортировку. На выбор: `age`, `join_date`, `salary`\n
+    :param sort_type: Направление сортировки: `asc` - по возрастанию (по-умолчанию) или `desc` - по убыванию\n
     :param limit: Количество данных в выдаче\n
-    :return: Возвращаем список `JSON` объектов БД
+    :return: Возвращаем `список JSON-объектов` БД
     """
     # TODO - Реализовать Аутентификацию.
     # TODO - Реализовать фильтр по списку значений для полей: Компания, Пол, Должность.
-    # TODO - Реализовать фильтр по дате устройства на работу с валидацией формата данных.
     if _collection is None:
         raise HTTPException(status_code=404, detail=f'Collection "{settings.collection_name}" not found.')
 
-    query = {}
+    # Переносим все полученные параметры в модель данных Pydantic.
+    search_params = SearchModel(company=company,
+                                min_age=min_age,
+                                max_age=max_age,
+                                min_salary=min_salary,
+                                max_salary=max_salary,
+                                job_title=job_title,
+                                gender=gender,
+                                start_join_date=start_join_date,
+                                end_join_date=end_join_date,
+                                sort_by=sort_by,
+                                sort_type=sort_type,
+                                limit=limit
+                                )
 
-    """Обработка фильтра по строковым значениям"""
-    for key, value in {'company': company, 'job_title': job_title, 'gender': gender}.items():
-        query.update(get_filter_by_string(name=key, value=value))
-
-    """Обработка фильтра по числовым диапазонам"""
-    if min_age or max_age:
-        query['age'] = get_filter_by_range(min_val=min_age, max_val=max_age)
-    if min_salary or max_salary:
-        query['salary'] = get_filter_by_range(min_val=min_salary, max_val=max_salary)
-    if start_join_date or end_join_date:
-        query['join_date'] = get_filter_by_range(min_val=start_join_date, max_val=end_join_date)
-
-    """Вместо того, чтобы убрать лишь столбец `_id`, мы перечисляем все НЕОБХОДИМЫЕ столбцы.
-    Это послужит защитой от передачи по ошибке чувствительных данных (номер карты, хеш пароля и т.п.)."""
-    # TODO - реализовать передачу через параметры списка необходимых полей БД.
-    columns = {'_id': 0, 'name': 1, 'email': 1, 'age': 1, 'company': 1, 'join_date': 1, 'job_title': 1,
-               'gender': 1, 'salary': 1}
-
-    search_filter = _collection.find(query, columns)
-
-    """Добавление лимитера по количеству данных в выдаче"""
-    if limit:
-        search_filter = search_filter.limit(limit)
-
-    """Сортировка по полю"""
-    if sort_by:
-        if sort_type == 'desc':
-            search_filter = search_filter.sort([[sort_by, -1]])
-        else:
-            search_filter = search_filter.sort([[sort_by, 1]])
-
-    employees = []
     try:
-        employees = [ReturnModel(**employee) for employee in await search_filter.to_list(None)]
+        employees = [ReturnModel(**employee) for employee in await get_search_command(search_params).to_list(None)]
         print(f'Number of found Employers: {len(employees)}')
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=504, detail="Server connection Timeout Error")
-    # except Exception as e:
-    #    raise HTTPException(status_code=500, detail=e)
 
     return employees
 
 
 @app.post('/search-by-post/')
 async def search_by_post(search_params: SearchModel) -> list[ReturnModel]:
+    """
+    ## Доступ к списку сотрудников через POST-запрос.\n
+    :param search_params: Формат входных данных для фильтра описан в `SearchModel`\n
+    :return: Список отфильтрованных сотрудников. Формат выходных данных описан в `ReturnModel`\n
+    """
     if _collection is None:
         raise HTTPException(status_code=404, detail=f'Collection "{settings.collection_name}" not found.')
 

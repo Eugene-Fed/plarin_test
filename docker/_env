@@ -1,3 +1,4 @@
 CLIENT_URI='mongodb://127.0.0.1:27017/'
 DB_NAME='My_DB'
 COLLECTION_NAME='Employees'
+DB_AUTH='some_secret_code'
