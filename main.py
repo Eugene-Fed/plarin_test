@@ -1,111 +1,11 @@
-import motor.motor_asyncio
+# import motor.motor_asyncio
+from db_connection import connect_to_db, disconnect_from_db
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from pymongo.errors import ServerSelectionTimeoutError
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
-from pydantic import BaseModel, BaseSettings, Field
+from pydantic_models import SearchModel, ReturnModel, Settings
 from pathlib import Path
-
-
-class Settings(BaseSettings):
-    """
-    Дата класс для получения параметров подключения к ДБ из переменных окружения.
-    """
-    app_name: str = 'GetEmployees'
-    client_uri: str
-    db_name: str
-    collection_name: str
-
-
-class SearchModel(BaseModel):
-    """
-    ## Используем для получения данных посредством POST запроса.
-    """
-    company: str | None = Field(default=None, description='Название компании')
-    min_age: int | None = Field(default=None)                     # Минимальный возраст
-    max_age: int | None = Field(default=None)                     # Максимальный возраст
-    limit: int | None = Field(default=None, description='Лимит результатов выдачи')  # Лимит количества данных в выдаче
-    name: str | None = None
-    email: str | None = None
-    start_join_date: str | None = Field(default=None, description='Дата в формате: `yyyy-MM-dd`')
-    end_join_date: str | None = Field(default=None, description='Дата в формате: `yyyy-MM-dd`')
-    job_title: str | None = None
-    gender: str = Field(default=None, description='Одно из значений: `male`, `female`, `other`')
-    min_salary: int | float | None = Field(default=None)
-    max_salary: int | float | None = Field(default=None)
-    sort_by: str | None = Field(default=None, description='Имя поля сортировки. Работает с любым полем (число и текст')
-    sort_type: str | None = Field(default=None, description='`asc`: По возрастанию (default), `desc`: по убыванию')
-
-
-class ReturnModel(BaseModel):
-    """## Формат возвращаемых данных."""
-    name: str = Field(description='ФИО Сотрудника')
-    email: str
-    age: int
-    company: str
-    join_date: str = Field(description='Дата в формате: `yyyy-MM-ddThh:mm:ssTZD`')
-    job_title: str
-    gender: str = Field(description='Одно из значений `male`, `female`, `other`')
-    salary: int = Field(description='Зарплата в USD в Месяц =)')
-
-
-class DbConnection:
-    """ПОКА НЕ ИСПОЛЬЗУЕТСЯ"""
-    # TODO - Протестировать этот класс взамен использования глобальных переменных `_client`, `_db`, `_collection`
-
-    def __init__(self, client_uri: str, db_name: str, collection_name: str):
-        self.client_uri = client_uri
-        self.db_name = db_name
-        self.collection_name = collection_name
-        self.client: AsyncIOMotorClient = None
-        self.db: AsyncIOMotorDatabase = None
-        self.collection: AsyncIOMotorCollection = None
-
-    async def get_connection(self, client_uri: str = None, db_name: str = None,
-                                collection_name: str = None) -> AsyncIOMotorCollection:
-        """
-        Создаем подключение к Базе данных. Если параметры не заданы - значит заполняем поля самого объекта.
-        :param client_uri:
-        :param db_name:
-        :param collection_name:
-        :return:
-        """
-        if client_uri:
-            client = await AsyncIOMotorClient(client_uri)
-            db = client[db_name]
-            collection = db[collection_name]
-        else:
-            if self.client is None:     # Создаем подключение, если оно еще не было задано
-                self.client = await AsyncIOMotorClient(client_uri)
-
-            if db_name:     # Если передано новое имя БД - используем его.
-                self.db = self.client[db_name]
-            else:
-                self.db = self.client[self.db_name]
-
-            if collection_name:     # Если передано новое имя Коллекции - используем его.
-                self.collection = self.db[collection_name]
-            else:
-                self.collection = self.db[self.collection_name]
-
-            collection = self.collection
-
-        print('Server connection was opened')
-        return collection
-
-    async def disconnect(self, client: AsyncIOMotorClient = None) -> None:
-        if client is None and self.client is not None:
-            await self.client.close()
-            print('Server connection was closed')
-        else:
-            print('Connection not set')
-
-
-# Вместо того чтобы прописать в `Settings` вложенный класс `Config`, используем `.env` только при его наличии
-if Path('.env').is_file():
-    settings = Settings(_env_file='.env', _env_file_encoding='utf-8')
-else:
-    settings = Settings()
 
 app = FastAPI()
 
@@ -114,38 +14,12 @@ _client: AsyncIOMotorClient = None
 _db: AsyncIOMotorDatabase = None
 _collection: AsyncIOMotorCollection = None
 
-
-# TODO - заменить использование этой функции на метод `DbConnection.get_connection()`.
-def connect_to_db(client_uri=settings.client_uri, db_name=settings.db_name, collection_name=settings.collection_name):
-    """
-    Подключение к заданное коллекции БД
-    :param client_uri:
-    :param db_name:
-    :param collection_name:
-    :return: None
-    """
-    global _client
-    global _db
-    global _collection
-    try:
-        _client = motor.motor_asyncio.AsyncIOMotorClient(client_uri)
-        _db = _client[db_name]
-        _collection = _db[collection_name]
-
-    except ServerSelectionTimeoutError:
-        raise HTTPException(status_code=504, detail="Server connection Timeout Error")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=e)
-
-
-# TODO - заменить использование этой функции на метод `DbConnection.disconnect()`.
-def disconnect_from_db(client=_client):
-    if client is not None:
-        try:
-            client.close()
-            print('Server connection was closed')
-        except Exception as e:
-            print(e)
+# Вместо того чтобы прописать в `Settings` вложенный класс `Config`, используем `.env` (при его наличии).
+if Path('.env').is_file():
+    settings = Settings(_env_file='.env', _env_file_encoding='utf-8')
+else:
+    # Если файл `.env` отсутствует - ищем переменные окружения в системе. Если не удастся - апп упадет с ошибкой.
+    settings = Settings()
 
 
 def get_filter_by_range(min_val: int | float | str = None,
@@ -231,15 +105,21 @@ def get_search_command(search: SearchModel):
 
 
 @app.on_event("startup")
-async def startup():
+def startup():
+    global _client
+    global _db
+    global _collection
+
     # TODO - Заменить на использование метода `DbConnection.get_connection()`.
-    connect_to_db()
+    _client = connect_to_db(client_uri=settings.client_uri)
+    _db = _client[settings.db_name]
+    _collection = _db[settings.collection_name]
 
 
 @app.on_event("shutdown")
-async def shutdown():
+def shutdown():
     # TODO - Заменить на использование метода `DbConnection.disconnect()`.
-    disconnect_from_db()
+    disconnect_from_db(client=_client)
 
 
 @app.get('/search-by-get/')
