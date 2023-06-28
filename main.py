@@ -172,7 +172,7 @@ def get_filter_by_range(min_val: int | float | str = None,
     return query
 
 
-def get_filter_by_string(name: str, value: str) -> dict[str, str]:
+def get_filter_by_string(name: str, value: str) -> dict:
     """
     Формируем часть запроса из текстовых или фильтров с возможностью обработки списка значений одного параметра.
     # TODO - Реализовать возможность принимать список значений в один параметр.
@@ -208,6 +208,8 @@ async def search_employees(company: str = None,
                            gender: str = None,
                            start_join_date: str = None,
                            end_join_date: str = None,
+                           sort_by: str = None,
+                           sort_type: str = None,
                            limit: int = None) -> list[ReturnModel]:
     """
     Доступ к списку сотрудников. Формат выдачи описан ниже на странице документации в модуле `Schemas` / `ReturnModel`\n
@@ -220,12 +222,17 @@ async def search_employees(company: str = None,
     :param gender: Один из вариантов: `male`, `female`, `other`\n
     :param start_join_date: Дата и время в формате `yyyy-MM-ddThh:mm:ssTZD`. Также работает формат `yyyy-MM-dd`\n
     :param end_join_date: Дата и время в формате `yyyy-MM-ddThh:mm:ssTZD`. Также работает формат `yyyy-MM-dd`\n
+    :param sort_by: Поле, по которому необходимо делать сортировку. На выбор: [age | join_date | salary] \n
+    :param sort_type: Направление сортировки: asc - по возрастанию (по-умолчанию) или desc - по убыванию.\n
     :param limit: Количество данных в выдаче\n
     :return: Возвращаем список `JSON` объектов БД
     """
     # TODO - Реализовать Аутентификацию.
     # TODO - Реализовать фильтр по списку значений для полей: Компания, Пол, Должность.
     # TODO - Реализовать фильтр по дате устройства на работу с валидацией формата данных.
+    if _collection is None:
+        raise HTTPException(status_code=404, detail=f'Collection "{settings.collection_name}" not found.')
+
     query = {}
 
     """Обработка фильтра по строковым значениям"""
@@ -245,13 +252,19 @@ async def search_employees(company: str = None,
     # TODO - реализовать передачу через параметры списка необходимых полей БД.
     columns = {'_id': 0, 'name': 1, 'email': 1, 'age': 1, 'company': 1, 'join_date': 1, 'job_title': 1,
                'gender': 1, 'salary': 1}
+
     search_filter = _collection.find(query, columns)
 
     """Добавление лимитера по количеству данных в выдаче"""
     if limit:
         search_filter = search_filter.limit(limit)
 
-    # TODO - Реализовать фильтр с использованием сортировки по необходимым полям.
+    """Сортировка по полю"""
+    if sort_by:
+        if sort_type == 'desc':
+            search_filter = search_filter.sort([[sort_by, -1]])
+        else:
+            search_filter = search_filter.sort([[sort_by, 1]])
 
     employees = []
     try:
