@@ -43,7 +43,7 @@ docker run -d --name plarin_test -d plarin_test:tag
 
 ## TUTORIALS
 https://github.com/tiangolo/fastapi/issues/50 - Способ передачи списка значений в параметр запроса.  
-https://tsmx.net/docker-local-mongodb/ - Подключение Докер-контейнера к локально запущенной MongoDB.
-https://www.ibm.com/docs/ru/urbancode-build/6.1.2?topic=reference-rest-api-conventions - Соглашение для `API REST`, в т.ч. о правилах работы с сортировкой (в конце документа).
+https://tsmx.net/docker-local-mongodb/ - Подключение Докер-контейнера к локально запущенной MongoDB.  
+https://www.ibm.com/docs/ru/urbancode-build/6.1.2?topic=reference-rest-api-conventions - Соглашение для `API REST`, в т.ч. о правилах работы с сортировкой (в конце документа).  
 https://metanit.com/nosql/mongodb/2.7.php - Альтернативный способ ограничить выборку по значению поля (подходит для полей *Возраст* и *Зарплата*).  
 https://fastapi.tiangolo.com/ru/tutorial/testing/ - Автотесты.  
