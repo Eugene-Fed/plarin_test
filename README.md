@@ -51,3 +51,4 @@ https://fastapi.tiangolo.com/tutorial/body/ - Pydantic Модель для оф�
 https://fastapi.tiangolo.com/tutorial/response-model/ - Pydantic Модель для офрмления Ответа.  
 https://www.mongodb.com/docs/compass/current/query/filter/ - Шпаргалка по работе с `MongoDB`.  
 https://motor.readthedocs.io/en/stable/api-asyncio/asyncio_motor_collection.html#motor.motor_asyncio.AsyncIOMotorCollection.find - Шпаргалка по работе с `Motor`.  
+https://github.com/tiangolo/fastapi/issues/2003#issuecomment-909379022 - Решение для асинхронных тестов FastAPI в фиде фабрики создания и закрытия "аппов" для каждого теста.  
