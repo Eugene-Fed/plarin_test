@@ -5,6 +5,7 @@ from pymongo.errors import ServerSelectionTimeoutError
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
 from pydantic_models import Settings, SearchModel, ReturnModel
 from pathlib import Path
+from db_filters import get_filter_by_range, get_filter_by_string, get_search_command
 
 
 if Path('.env').is_file():          # Если файл `.env` существует - забираем настройки из него
@@ -60,89 +61,7 @@ def disconnect_from_db(client=_client):
             print(e)
 
 
-# БЛОК ВСПОМОГАТЕЛЬНЫХ МЕТОДОВ ДЛЯ ФОРМИРОВАНИЯ ЗАПРОСА К БД ##########################################################
-def get_filter_by_range(min_val: int | float | str = None,
-                        max_val: int | float | str = None,
-                        ) -> dict[str, int | float]:
-    """
-    Генерация фильтра по числовым диапазонам.
-    :param min_val: Минимальное значение.
-    :param max_val: Максимальное значение.
-    :return: Словарь с фильтром запроса к MongoDB с числовыми параметрами.
-    """
-    query = {}
-
-    if min_val and type(min_val) == (int or float) \
-            and max_val and type(max_val) == (int or float)\
-            and min_val > max_val:
-        # Пытался проверять через тип через `.isnumeric`, но тесты генерят Исключения при работе с этим методом.
-        min_val, max_val = max_val, min_val     # Меняем числа местами, если `min_val` > `max_val`
-
-    if min_val:
-        query['$gte'] = min_val                 # Добавляем к запросу метод "Больше или равно"
-
-    if max_val:
-        query['$lte'] = max_val                 # Добавляем к запросу метод "Меньше или равно"
-
-    return query
-
-
-def get_filter_by_string(name: str, value: str) -> dict:
-    """
-    Генерация фильтра по текстовым параметрам.
-    # TODO - Реализовать возможность принимать список значений в один параметр.
-    :param name: Имя параметра, например `company`.
-    :param value: Значение параметра, например `Yandex`.
-    :return: Словарь с фильтром запроса к MongoDB с текстовыми параметрами.
-    """
-    query = {}
-    if value is not None:
-        query[name] = value
-    return query
-
-
-def get_search_command(search: SearchModel):
-    """
-    Формируем поисковый запрос к БД на основе списка параметров `GET`-запроса или json-тела `POST`-запроса.
-    :param search: Параметры запроса в формате Базовой модели `pydantic`. Формат описан в модуле pydantic_models.
-    :return: Объект запроса к MongoDB.
-    """
-    query = {}
-
-    """Обработка фильтра по строковым значениям"""
-    # TODO - Сформировать словарь на основе названий и значений параметров класса `SearchModel`, взамен сопоставления.
-    for name, value in {'company': search.company, 'job_title': search.job_title, 'gender': search.gender}.items():
-        query.update(get_filter_by_string(name=name, value=value))
-
-    """Обработка фильтра по числовым диапазонам"""
-    if search.min_age or search.max_age:
-        query['age'] = get_filter_by_range(min_val=search.min_age, max_val=search.max_age)
-    if search.min_salary or search.max_salary:
-        query['salary'] = get_filter_by_range(min_val=search.min_salary, max_val=search.max_salary)
-    if search.start_join_date or search.end_join_date:
-        query['join_date'] = get_filter_by_range(min_val=search.start_join_date, max_val=search.end_join_date)
-
-    """Вместо того, чтобы убрать лишь столбец `_id`, мы перечисляем все НЕОБХОДИМЫЕ столбцы.
-    Это послужит защитой от передачи по ошибке чувствительных данных (номер карты, хеш пароля и т.п.)."""
-    # TODO - реализовать передачу через параметры списка необходимых полей БД.
-    columns = {'_id': 0, 'name': 1, 'email': 1, 'age': 1, 'company': 1, 'join_date': 1, 'job_title': 1,
-               'gender': 1, 'salary': 1}
-
-    search_filter = _collection.find(query, columns)
-
-    """Добавление лимитера по количеству данных в выдаче"""
-    if search.limit:
-        search_filter = search_filter.limit(search.limit)
-
-    """Сортировка по полю"""
-    if search.sort_by:
-        if search.sort_type == 'desc':              # Если задано - сортируем по убыванию.
-            search_filter = search_filter.sort([[search.sort_by, -1]])
-        else:                                       # Во всех прочих случаях сортируем по возрастанию.
-            search_filter = search_filter.sort([[search.sort_by, 1]])
-    return search_filter
-
-
+# БЛОК МЕТОДОВ FastAPI ################################################################################################
 @app.on_event("startup")
 async def startup():
     # TODO - Заменить на использование метода `db_connection.DbConnection.get_connection()`.
@@ -187,7 +106,8 @@ async def search_by_get(company: str = None,
     # TODO - Реализовать Аутентификацию.
     # TODO - Реализовать фильтр по списку значений для полей: Компания, Пол, Должность.
     if _collection is None:
-        raise HTTPException(status_code=404, detail=f'Collection "{settings.collection_name}" not found.')
+        # raise HTTPException(status_code=404, detail=f'Collection "{settings.collection_name}" not found.')
+        connect_to_db()
 
     # Переносим все полученные параметры в модель данных Pydantic.
     search_params = SearchModel(company=company,
@@ -205,7 +125,8 @@ async def search_by_get(company: str = None,
                                 )
 
     try:
-        employees = [ReturnModel(**employee) for employee in await get_search_command(search_params).to_list(None)]
+        employees = [ReturnModel(**employee) for employee in await get_search_command(search_params,
+                                                                                      _collection).to_list(None)]
         print(f'Number of found Employers: {len(employees)}')
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=504, detail="Server connection Timeout Error")
@@ -221,10 +142,12 @@ async def search_by_post(search_params: SearchModel) -> list[ReturnModel]:
     :return: Список отфильтрованных сотрудников. Формат выходных данных описан в `ReturnModel`\n
     """
     if _collection is None:
-        raise HTTPException(status_code=404, detail=f'Collection "{settings.collection_name}" not found.')
+        # raise HTTPException(status_code=404, detail=f'Collection "{settings.collection_name}" not found.')
+        connect_to_db()
 
     try:
-        employees = [ReturnModel(**employee) for employee in await get_search_command(search_params).to_list(None)]
+        employees = [ReturnModel(**employee) for employee in await get_search_command(search_params,
+                                                                                      _collection).to_list(None)]
         print(f'Number of found Employers: {len(employees)}')
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=504, detail="Server connection Timeout Error")
