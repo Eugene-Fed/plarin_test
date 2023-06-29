@@ -3,121 +3,29 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pymongo.errors import ServerSelectionTimeoutError
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
-from pydantic import BaseModel, BaseSettings, Field
+from pydantic_models import Settings, SearchModel, ReturnModel
 from pathlib import Path
 
 
-class Settings(BaseSettings):
-    """
-    Дата класс для получения параметров подключения к ДБ из переменных окружения.
-    """
-    app_name: str = 'GetEmployees'
-    client_uri: str
-    db_name: str
-    collection_name: str
-
-
-class SearchModel(BaseModel):
-    """
-    ## Используем для получения данных посредством POST запроса.
-    """
-    company: str | None = Field(default=None, description='Название компании')
-    min_age: int | None = Field(default=None)                     # Минимальный возраст
-    max_age: int | None = Field(default=None)                     # Максимальный возраст
-    limit: int | None = Field(default=None, description='Лимит результатов выдачи')  # Лимит количества данных в выдаче
-    name: str | None = None
-    email: str | None = None
-    start_join_date: str | None = Field(default=None, description='Дата в формате: `yyyy-MM-dd`')
-    end_join_date: str | None = Field(default=None, description='Дата в формате: `yyyy-MM-dd`')
-    job_title: str | None = None
-    gender: str = Field(default=None, description='Одно из значений: `male`, `female`, `other`')
-    min_salary: int | float | None = Field(default=None)
-    max_salary: int | float | None = Field(default=None)
-    sort_by: str | None = Field(default=None, description='Имя поля сортировки. Работает с любым полем (число и текст')
-    sort_type: str | None = Field(default=None, description='`asc`: По возрастанию (default), `desc`: по убыванию')
-
-
-class ReturnModel(BaseModel):
-    """## Формат возвращаемых данных."""
-    name: str = Field(description='ФИО Сотрудника')
-    email: str
-    age: int
-    company: str
-    join_date: str = Field(description='Дата в формате: `yyyy-MM-ddThh:mm:ssTZD`')
-    job_title: str
-    gender: str = Field(description='Одно из значений `male`, `female`, `other`')
-    salary: int = Field(description='Зарплата в USD в Месяц =)')
-
-
-class DbConnection:
-    """ПОКА НЕ ИСПОЛЬЗУЕТСЯ"""
-    # TODO - Протестировать этот класс взамен использования глобальных переменных `_client`, `_db`, `_collection`
-
-    def __init__(self, client_uri: str, db_name: str, collection_name: str):
-        self.client_uri = client_uri
-        self.db_name = db_name
-        self.collection_name = collection_name
-        self.client: AsyncIOMotorClient = None
-        self.db: AsyncIOMotorDatabase = None
-        self.collection: AsyncIOMotorCollection = None
-
-    async def get_connection(self, client_uri: str = None, db_name: str = None,
-                                collection_name: str = None) -> AsyncIOMotorCollection:
-        """
-        Создаем подключение к Базе данных. Если параметры не заданы - значит заполняем поля самого объекта.
-        :param client_uri:
-        :param db_name:
-        :param collection_name:
-        :return:
-        """
-        if client_uri:
-            client = await AsyncIOMotorClient(client_uri)
-            db = client[db_name]
-            collection = db[collection_name]
-        else:
-            if self.client is None:     # Создаем подключение, если оно еще не было задано
-                self.client = await AsyncIOMotorClient(client_uri)
-
-            if db_name:     # Если передано новое имя БД - используем его.
-                self.db = self.client[db_name]
-            else:
-                self.db = self.client[self.db_name]
-
-            if collection_name:     # Если передано новое имя Коллекции - используем его.
-                self.collection = self.db[collection_name]
-            else:
-                self.collection = self.db[self.collection_name]
-
-            collection = self.collection
-
-        print('Server connection was opened')
-        return collection
-
-    async def disconnect(self, client: AsyncIOMotorClient = None) -> None:
-        if client is None and self.client is not None:
-            await self.client.close()
-            print('Server connection was closed')
-        else:
-            print('Connection not set')
-
-
-# Вместо того чтобы прописать в `Settings` вложенный класс `Config`, используем `.env` только при его наличии
-if Path('.env').is_file():
+if Path('.env').is_file():          # Если файл `.env` существует - забираем настройки из него
     settings = Settings(_env_file='.env', _env_file_encoding='utf-8')
-else:
+else:                               # В противном случае пытаемся забрать настройки из системных переменных окружения.
     settings = Settings()
 
 app = FastAPI()
 
-# TODO - заменить использование глобальных переменных на класс `DbConnection`.
+# TODO - заменить использование глобальных переменных на класс `db_connection.DbConnection`.
+# Объекты подключения к БД.
 _client: AsyncIOMotorClient = None
 _db: AsyncIOMotorDatabase = None
 _collection: AsyncIOMotorCollection = None
 
 
-# TODO - заменить использование этой функции на метод `DbConnection.get_connection()`.
+# БЛОК МЕТОДОВ ДЛЯ РАБОТЫ С ПОДКЛЮЧЕНИЕМ К БД #########################################################################
+# При попытке вынести эти функции в отдельный модуль, тесты начинают падать из-за исключений, связанных с асинхронностью
 def connect_to_db(client_uri=settings.client_uri, db_name=settings.db_name, collection_name=settings.collection_name):
     """
+    # TODO - заменить использование этой функции на метод `db_connection.DbConnection.get_connection()`.
     Подключение к заданное коллекции БД
     :param client_uri:
     :param db_name:
@@ -138,8 +46,12 @@ def connect_to_db(client_uri=settings.client_uri, db_name=settings.db_name, coll
         raise HTTPException(status_code=500, detail=e)
 
 
-# TODO - заменить использование этой функции на метод `DbConnection.disconnect()`.
 def disconnect_from_db(client=_client):
+    """
+    # TODO - заменить использование этой функции на метод `db_connection.DbConnection.disconnect()`.
+    :param client:
+    :return:
+    """
     if client is not None:
         try:
             client.close()
@@ -148,39 +60,40 @@ def disconnect_from_db(client=_client):
             print(e)
 
 
+# БЛОК ВСПОМОГАТЕЛЬНЫХ МЕТОДОВ ДЛЯ ФОРМИРОВАНИЯ ЗАПРОСА К БД ##########################################################
 def get_filter_by_range(min_val: int | float | str = None,
                         max_val: int | float | str = None,
                         ) -> dict[str, int | float]:
     """
-    Функция для форматирования числового фильтра.
+    Генерация фильтра по числовым диапазонам.
     :param min_val: Минимальное значение.
     :param max_val: Максимальное значение.
-    :return: Словарь с фильтром запроса к MongoDB.
+    :return: Словарь с фильтром запроса к MongoDB с числовыми параметрами.
     """
     query = {}
 
     if min_val and type(min_val) == (int or float) \
             and max_val and type(max_val) == (int or float)\
             and min_val > max_val:
-        # Меняем числа местами, если `min_val` > `max_val`
-        min_val, max_val = max_val, min_val
+        # Пытался проверять через тип через `.isnumeric`, но тесты генерят Исключения при работе с этим методом.
+        min_val, max_val = max_val, min_val     # Меняем числа местами, если `min_val` > `max_val`
 
     if min_val:
-        query['$gte'] = min_val
+        query['$gte'] = min_val                 # Добавляем к запросу метод "Больше или равно"
 
     if max_val:
-        query['$lte'] = max_val
+        query['$lte'] = max_val                 # Добавляем к запросу метод "Меньше или равно"
 
     return query
 
 
 def get_filter_by_string(name: str, value: str) -> dict:
     """
-    Формируем часть запроса из текстовых или фильтров с возможностью обработки списка значений одного параметра.
+    Генерация фильтра по текстовым параметрам.
     # TODO - Реализовать возможность принимать список значений в один параметр.
-    :param name:
-    :param value:
-    :return: Результат выполнения метода AsyncIOMotorCollection.find()
+    :param name: Имя параметра, например `company`.
+    :param value: Значение параметра, например `Yandex`.
+    :return: Словарь с фильтром запроса к MongoDB с текстовыми параметрами.
     """
     query = {}
     if value is not None:
@@ -190,16 +103,16 @@ def get_filter_by_string(name: str, value: str) -> dict:
 
 def get_search_command(search: SearchModel):
     """
-    Формируем запрос к БД.
-    :param search:
-    :return:
+    Формируем поисковый запрос к БД на основе списка параметров `GET`-запроса или json-тела `POST`-запроса.
+    :param search: Параметры запроса в формате Базовой модели `pydantic`. Формат описан в модуле pydantic_models.
+    :return: Объект запроса к MongoDB.
     """
     query = {}
 
     """Обработка фильтра по строковым значениям"""
     # TODO - Сформировать словарь на основе названий и значений параметров класса `SearchModel`, взамен сопоставления.
-    for key, value in {'company': search.company, 'job_title': search.job_title, 'gender': search.gender}.items():
-        query.update(get_filter_by_string(name=key, value=value))
+    for name, value in {'company': search.company, 'job_title': search.job_title, 'gender': search.gender}.items():
+        query.update(get_filter_by_string(name=name, value=value))
 
     """Обработка фильтра по числовым диапазонам"""
     if search.min_age or search.max_age:
@@ -223,22 +136,22 @@ def get_search_command(search: SearchModel):
 
     """Сортировка по полю"""
     if search.sort_by:
-        if search.sort_type == 'desc':
+        if search.sort_type == 'desc':              # Если задано - сортируем по убыванию.
             search_filter = search_filter.sort([[search.sort_by, -1]])
-        else:
+        else:                                       # Во всех прочих случаях сортируем по возрастанию.
             search_filter = search_filter.sort([[search.sort_by, 1]])
     return search_filter
 
 
 @app.on_event("startup")
 async def startup():
-    # TODO - Заменить на использование метода `DbConnection.get_connection()`.
+    # TODO - Заменить на использование метода `db_connection.DbConnection.get_connection()`.
     connect_to_db()
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    # TODO - Заменить на использование метода `DbConnection.disconnect()`.
+    # TODO - Заменить на использование метода `db_connection.DbConnection.disconnect()`.
     disconnect_from_db()
 
 
