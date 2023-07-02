@@ -9,12 +9,31 @@ class DbConnection:
         self.client_uri = client_uri
         self.db_name = db_name
         self.collection_name = collection_name
-        self.client: AsyncIOMotorClient = None
-        self.db: AsyncIOMotorDatabase = None
-        self.collection: AsyncIOMotorCollection = None
+        self._client: AsyncIOMotorClient = None
+        self._db: AsyncIOMotorDatabase = None
+        self._collection: AsyncIOMotorCollection = None
 
-    async def get_connection(self, client_uri: str = None, db_name: str = None,
-                                collection_name: str = None) -> AsyncIOMotorCollection:
+    def __call__(self) -> None:
+        self._client, self._db, self._collection = self.get_client_connection(self.client_uri,
+                                                                              self.db_name,
+                                                                              self.collection_name)
+
+    @property
+    def client(self):
+        return self._client
+
+    @property
+    def db(self):
+        return self._db
+
+    @property
+    def collection(self):
+        return self._collection
+
+    def get_client_connection(self, client_uri: str = None, db_name: str = None,
+                              collection_name: str = None) -> tuple[AsyncIOMotorClient,
+                                                                    AsyncIOMotorDatabase,
+                                                                    AsyncIOMotorCollection]:
         """
         Создаем подключение к Базе данных. Если параметры не заданы - значит заполняем поля самого объекта.
         :param client_uri:
@@ -23,31 +42,36 @@ class DbConnection:
         :return:
         """
         if client_uri:
-            client = await AsyncIOMotorClient(client_uri)
+            client = AsyncIOMotorClient(client_uri)
             db = client[db_name]
             collection = db[collection_name]
         else:
-            if self.client is None:     # Создаем подключение, если оно еще не было задано
-                self.client = await AsyncIOMotorClient(client_uri)
+            if self._client is None:     # Создаем подключение, если оно еще не было задано
+                self._client = AsyncIOMotorClient(client_uri)
 
             if db_name:     # Если передано новое имя БД - используем его.
-                self.db = self.client[db_name]
+                self._db = self._client[db_name]
             else:
-                self.db = self.client[self.db_name]
+                self._db = self._client[self.db_name]
 
             if collection_name:     # Если передано новое имя Коллекции - используем его.
-                self.collection = self.db[collection_name]
+                self._collection = self._db[collection_name]
             else:
-                self.collection = self.db[self.collection_name]
+                self._collection = self._db[self.collection_name]
 
-            collection = self.collection
+            client = self._client
+            db = self._db
+            collection = self._collection
 
         print('Server connection was opened')
-        return collection
+        return client, db, collection
 
-    async def disconnect(self, client: AsyncIOMotorClient = None) -> None:
-        if client is None and self.client is not None:
-            await self.client.close()
+    def disconnect_from_client(self, client: AsyncIOMotorClient = None) -> None:
+        if client is not None:              # Если клиент передан в параметре - закрываем его
+            client.close()
+            print('Server connection was closed')
+        elif self._client is not None:       # Если клиент не передан, но существует открытое соединение - закрываем его
+            self._client.close()
             print('Server connection was closed')
         else:
             print('Connection not set')

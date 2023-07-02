@@ -1,12 +1,10 @@
-import motor.motor_asyncio
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from pymongo.errors import ServerSelectionTimeoutError
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
 from pydantic_models import Settings, SearchModel, ReturnModel
 from pathlib import Path
-from db_filters import get_filter_by_range, get_filter_by_string, get_search_command
-
+from db_filters import get_search_command
+from db_connection import DbConnection
 
 if Path('.env').is_file():          # Если файл `.env` существует - забираем настройки из него
     settings = Settings(_env_file='.env', _env_file_encoding='utf-8')
@@ -14,64 +12,19 @@ else:                               # В противном случае пыт�
     settings = Settings()
 
 app = FastAPI()
-
-# TODO - заменить использование глобальных переменных на класс `db_connection.DbConnection`.
-# Объекты подключения к БД.
-_client: AsyncIOMotorClient = None
-_db: AsyncIOMotorDatabase = None
-_collection: AsyncIOMotorCollection = None
+connection = DbConnection(client_uri=settings.client_uri,
+                          db_name=settings.db_name,
+                          collection_name=settings.collection_name)
 
 
-# БЛОК МЕТОДОВ ДЛЯ РАБОТЫ С ПОДКЛЮЧЕНИЕМ К БД #########################################################################
-# При попытке вынести эти функции в отдельный модуль, тесты начинают падать из-за исключений, связанных с асинхронностью
-def connect_to_db(client_uri=settings.client_uri, db_name=settings.db_name, collection_name=settings.collection_name):
-    """
-    # TODO - заменить использование этой функции на метод `db_connection.DbConnection.get_connection()`.
-    Подключение к заданное коллекции БД
-    :param client_uri:
-    :param db_name:
-    :param collection_name:
-    :return: None
-    """
-    global _client
-    global _db
-    global _collection
-    try:
-        _client = motor.motor_asyncio.AsyncIOMotorClient(client_uri)
-        _db = _client[db_name]
-        _collection = _db[collection_name]
-
-    except ServerSelectionTimeoutError:
-        raise HTTPException(status_code=504, detail="Server connection Timeout Error")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=e)
-
-
-def disconnect_from_db(client=_client):
-    """
-    # TODO - заменить использование этой функции на метод `db_connection.DbConnection.disconnect()`.
-    :param client:
-    :return:
-    """
-    if client is not None:
-        try:
-            client.close()
-            print('Server connection was closed')
-        except Exception as e:
-            print(e)
-
-
-# БЛОК МЕТОДОВ FastAPI ################################################################################################
 @app.on_event("startup")
-async def startup():
-    # TODO - Заменить на использование метода `db_connection.DbConnection.get_connection()`.
-    connect_to_db()
+def startup():
+    connection()
 
 
 @app.on_event("shutdown")
-async def shutdown():
-    # TODO - Заменить на использование метода `db_connection.DbConnection.disconnect()`.
-    disconnect_from_db()
+def shutdown():
+    connection.disconnect_from_client()
 
 
 @app.get('/search-by-get/')
@@ -101,13 +54,10 @@ async def search_by_get(company: str = None,
     :param sort_by: Поле, по которому необходимо делать сортировку. На выбор: `age`, `join_date`, `salary`\n
     :param sort_type: Направление сортировки: `asc` - по возрастанию (по-умолчанию) или `desc` - по убыванию\n
     :param limit: Количество данных в выдаче\n
-    :return: Возвращаем `список JSON-объектов` БД
+    :return: Отфильтрованный и отсортированный `список JSON-объектов` БД
     """
     # TODO - Реализовать Аутентификацию.
     # TODO - Реализовать фильтр по списку значений для полей: Компания, Пол, Должность.
-    if _collection is None:
-        # raise HTTPException(status_code=404, detail=f'Collection "{settings.collection_name}" not found.')
-        connect_to_db()
 
     # Переносим все полученные параметры в модель данных Pydantic.
     search_params = SearchModel(company=company,
@@ -125,8 +75,8 @@ async def search_by_get(company: str = None,
                                 )
 
     try:
-        employees = [ReturnModel(**employee) for employee in await get_search_command(search_params,
-                                                                                      _collection).to_list(None)]
+        employees = [ReturnModel(**employee) for employee in
+                     await get_search_command(search_params, connection.collection).to_list(None)]
         print(f'Number of found Employers: {len(employees)}')
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=504, detail="Server connection Timeout Error")
@@ -141,13 +91,10 @@ async def search_by_post(search_params: SearchModel) -> list[ReturnModel]:
     :param search_params: Формат входных данных для фильтра описан в `SearchModel`\n
     :return: Список отфильтрованных сотрудников. Формат выходных данных описан в `ReturnModel`\n
     """
-    if _collection is None:
-        # raise HTTPException(status_code=404, detail=f'Collection "{settings.collection_name}" not found.')
-        connect_to_db()
 
     try:
         employees = [ReturnModel(**employee) for employee in await get_search_command(search_params,
-                                                                                      _collection).to_list(None)]
+                                                                                      connection.collection).to_list(None)]
         print(f'Number of found Employers: {len(employees)}')
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=504, detail="Server connection Timeout Error")

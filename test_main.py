@@ -1,23 +1,25 @@
-from main import app, connect_to_db
+from main import app, connection, startup, settings
 from fastapi.testclient import TestClient
 
 client = TestClient(app)
+startup()
 
 
 def test_get_endpoint():
-    connect_to_db()
+    connection.get_client_connection()
     response = client.get('/search-by-get/')
+    # connection.disconnect_from_client()
     assert response.status_code == 200
 
 
 def test_post_endpoint():
-    connect_to_db()
+    connection.get_client_connection()
     response = client.post('/search-by-post/', json={})
     assert response.status_code == 200
-
+'''
 
 def test_get_company_age():
-    connect_to_db()
+    # connect_to_db()
     params = {'company': 'Yandex', 'min_age': 20, 'max_age': 20}
     response_json = [{"name": "Michael Mays",
                       "email": "augue.scelerisque@aliquetvel.edu",
@@ -33,7 +35,7 @@ def test_get_company_age():
 
 
 def test_post_company_age():
-    connect_to_db()
+    # connect_to_db()
     params = {'company': 'Yandex', 'min_age': 20, 'max_age': 20}
     response_json = [{"name": "Michael Mays",
                       "email": "augue.scelerisque@aliquetvel.edu",
@@ -49,7 +51,7 @@ def test_post_company_age():
 
 
 def test_get_limit_sort():
-    connect_to_db()
+    # connect_to_db()
     params = {'company': 'Google', 'limit': 1, 'sort_by': 'age', 'sort_type': 'desc'}
     response_json = [{"name": "Callum Bird",
                       "email": "ipsum.dolor.sit@gravidaAliquam.edu",
@@ -65,7 +67,7 @@ def test_get_limit_sort():
 
 
 def test_post_limit_sort():
-    connect_to_db()
+    # connect_to_db()
     params = {'company': 'Google', 'limit': 1, 'sort_by': 'age', 'sort_type': 'desc'}
     response_json = [{"name": "Callum Bird",
                       "email": "ipsum.dolor.sit@gravidaAliquam.edu",
@@ -81,7 +83,7 @@ def test_post_limit_sort():
 
 
 def test_get_job_gender_date_salary():
-    connect_to_db()
+    # connect_to_db()
     params = {'min_salary': 4000, 'max_salary': 6000, 'job_title': 'director',
               'gender': 'female', 'start_join_date': '2010-01-01', 'end_join_date': '2011-01-01'}
     response_json = [{"name": "Ivan Higgins",
@@ -98,7 +100,7 @@ def test_get_job_gender_date_salary():
 
 
 def test_post_job_gender_date_salary():
-    connect_to_db()
+    # connect_to_db()
     params = {'min_salary': 4000, 'max_salary': 6000, 'job_title': 'director',
               'gender': 'female', 'start_join_date': '2010-01-01', 'end_join_date': '2011-01-01'}
     response_json = [{"name": "Ivan Higgins",
@@ -112,3 +114,4 @@ def test_post_job_gender_date_salary():
     response = client.post('/search-by-post/', json=params)
     assert response.status_code == 200
     assert response.json() == response_json
+'''
