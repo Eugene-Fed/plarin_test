@@ -5,6 +5,7 @@ from pydantic_models import Settings, SearchModel, ReturnModel
 from pathlib import Path
 from db_filters import get_search_command
 from db_connection import DbConnection
+from typing import Any
 
 if Path('.env').is_file():          # Если файл `.env` существует - забираем настройки из него
     settings = Settings(_env_file='.env', _env_file_encoding='utf-8')
@@ -27,7 +28,7 @@ def shutdown():
     connection.disconnect_from_client()
 
 
-@app.get('/search-by-get/')
+@app.get('/search-by-get/', response_model=list[ReturnModel])
 async def search_by_get(company: str = None,
                         min_age: int = None,
                         max_age: int = None,
@@ -39,7 +40,7 @@ async def search_by_get(company: str = None,
                         end_join_date: str = None,
                         sort_by: str = None,
                         sort_type: str = None,
-                        limit: int = None) -> list[ReturnModel]:
+                        limit: int = None) -> Any:
     """
     ## Доступ к списку сотрудников через GET-запрос. Формат выдачи описан ниже модуле `Schemas` / `ReturnModel`\n
     :param company: Название компании\n
@@ -84,8 +85,8 @@ async def search_by_get(company: str = None,
     return employees
 
 
-@app.post('/search-by-post/')
-async def search_by_post(search_params: SearchModel) -> list[ReturnModel]:
+@app.post('/search-by-post/', response_model=list[ReturnModel])
+async def search_by_post(search_params: SearchModel) -> Any:
     """
     ## Доступ к списку сотрудников через POST-запрос.\n
     :param search_params: Формат входных данных для фильтра описан в `SearchModel`\n

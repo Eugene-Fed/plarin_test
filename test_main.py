@@ -4,7 +4,7 @@ import pytest
 from httpx import AsyncClient
 import asyncio
 
-client = TestClient(app)
+# client = TestClient(app)
 startup()
 params = {'max_age': 55,
           'min_salary': 3500,
@@ -40,8 +40,23 @@ response_json = [
                   }
                 ]
 
-
+'''
 def test_get_company_age():
     response = client.get('/search-by-get/', params=params)
     assert response.status_code == 200
     assert response.json() == response_json
+'''
+
+
+async def request(client, url='/search-by-get/'):
+    async with client.get(url, params=params) as response:
+        return await response
+
+
+async def test_task(count=10):
+    async with TestClient(app) as client:
+        tasks = [request(client) for i in range(count)]
+        results = await asyncio.gather(*tasks)
+        for result in results:
+            assert result.status_code == 200
+            assert result.json() == response_json

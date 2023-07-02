@@ -1,5 +1,5 @@
 from os import environ
-from pydantic import BaseModel, BaseSettings, Field
+from pydantic import BaseModel, BaseSettings, Field, EmailStr
 
 
 class Settings(BaseSettings):
@@ -23,7 +23,7 @@ class SearchModel(BaseModel):
     max_age: int | None = Field(default=None)                     # Максимальный возраст
     limit: int | None = Field(default=None, description='Лимит результатов выдачи')  # Лимит количества данных в выдаче
     name: str | None = None
-    email: str | None = None
+    email: EmailStr | None = None
     start_join_date: str | None = Field(default=None, description='Дата в формате: `yyyy-MM-dd`')
     end_join_date: str | None = Field(default=None, description='Дата в формате: `yyyy-MM-dd`')
     job_title: str | None = None
@@ -38,7 +38,7 @@ class ReturnModel(BaseModel):
     """## Формат возвращаемых данных."""
     # !!! НЕ ВЫВОДИТЬ ЧУВСТВИТЕЛЬНЫЕ ДАННЫЕ !!!
     name: str = Field(description='ФИО Сотрудника')
-    email: str
+    email: str          # !!! EmailStr - кладет тесты !!!
     age: int
     company: str
     join_date: str = Field(description='Дата в формате: `yyyy-MM-ddThh:mm:ssTZD`')
