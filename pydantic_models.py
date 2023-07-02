@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     app_name: str = 'GetEmployees'
     client_uri: str = environ.get('CLIENT_URI')
     db_name: str = environ.get('DB_NAME')
-    collection_name: str = environ.get('employees_test')
+    collection_name: str = environ.get('COLLECTION_NAME')
     db_auth: str = environ.get('DB_AUTH')
 
 
