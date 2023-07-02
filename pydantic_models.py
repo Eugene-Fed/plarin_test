@@ -36,6 +36,7 @@ class SearchModel(BaseModel):
 
 class ReturnModel(BaseModel):
     """## Формат возвращаемых данных."""
+    # !!! НЕ ВЫВОДИТЬ ЧУВСТВИТЕЛЬНЫЕ ДАННЫЕ !!!
     name: str = Field(description='ФИО Сотрудника')
     email: str
     age: int

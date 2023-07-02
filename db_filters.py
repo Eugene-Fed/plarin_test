@@ -6,7 +6,7 @@ def get_filter_by_range(min_val: int | float | str = None,
                         max_val: int | float | str = None,
                         ) -> dict[str, int | float]:
     """
-    Генерация фильтра по числовым диапазонам.
+    Генерация фильтра по числовым диапазонам.\n
     :param min_val: Минимальное значение.
     :param max_val: Максимальное значение.
     :return: Словарь с фильтром запроса к MongoDB с числовыми параметрами.
@@ -31,7 +31,7 @@ def get_filter_by_range(min_val: int | float | str = None,
 def get_filter_by_string(name: str, value: str) -> dict:
     """
     Генерация фильтра по текстовым параметрам.
-    # TODO - Реализовать возможность принимать список значений в один параметр.
+    # TODO - Реализовать возможность принимать список значений в один параметр.\n
     :param name: Имя параметра, например `company`.
     :param value: Значение параметра, например `Yandex`.
     :return: Словарь с фильтром запроса к MongoDB с текстовыми параметрами.
@@ -45,7 +45,7 @@ def get_filter_by_string(name: str, value: str) -> dict:
 def get_search_command(search: SearchModel, collection: AsyncIOMotorCollection):
     """
     Формируем поисковый запрос к БД на основе списка параметров `GET`-запроса или json-тела `POST`-запроса.
-    :param search: Параметры запроса в формате Базовой модели `pydantic`. Формат описан в модуле pydantic_models.
+    :param search: Параметры запроса в формате Базовой модели `pydantic`. Формат описан в модуле pydantic_models.\n
     :param collection:
     :return: Объект запроса к MongoDB.
     """
@@ -64,12 +64,9 @@ def get_search_command(search: SearchModel, collection: AsyncIOMotorCollection):
     if search.start_join_date or search.end_join_date:
         query['join_date'] = get_filter_by_range(min_val=search.start_join_date, max_val=search.end_join_date)
 
-    """Вместо того, чтобы убрать лишь столбец `_id`, мы перечисляем все НЕОБХОДИМЫЕ столбцы.
-    Это послужит защитой от передачи по ошибке чувствительных данных (номер карты, хеш пароля и т.п.)."""
-    # TODO - реализовать передачу через параметры списка необходимых полей БД.
-    columns = {'_id': 0, 'name': 1, 'email': 1, 'age': 1, 'company': 1, 'join_date': 1, 'job_title': 1,
-               'gender': 1, 'salary': 1}
-
+    '''Выключаем из выдачи столбец с ID, который имеет встроенный тип MongoDB и приводит к ошибке.
+    За сохранность чувствительных данных отвечает класс `pydantic_models.ReturnModel`'''
+    columns = {'_id:': 0}
     search_filter = collection.find(query, columns)
 
     """Добавление лимитера по количеству данных в выдаче"""
