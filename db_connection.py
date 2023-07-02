@@ -1,11 +1,20 @@
+import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
 
 
 class DbConnection:
-    """ПОКА НЕ ИСПОЛЬЗУЕТСЯ"""
-    # TODO - Протестировать этот класс взамен использования глобальных переменных `_client`, `_db`, `_collection`
-
     def __init__(self, client_uri: str, db_name: str, collection_name: str):
+        """
+        Для присвоения значений объектам `client`, `db` и `collection`,
+        необходимо вызвать объект подключения после его инициализации:\n
+        `\n
+        conn = DbConnection(**params)\n
+        conn()\n
+        `\n
+        :param client_uri: Адрес клиента БД
+        :param db_name: Имя БД
+        :param collection_name: Имя коллекции
+        """
         self.client_uri = client_uri
         self.db_name = db_name
         self.collection_name = collection_name
@@ -17,6 +26,7 @@ class DbConnection:
         self._client, self._db, self._collection = self.get_client_connection(self.client_uri,
                                                                               self.db_name,
                                                                               self.collection_name)
+        # self._client.get_io_loop = asyncio.get_running_loop()     # Патч для работы с асинхронными тестами
 
     @property
     def client(self):
@@ -35,11 +45,11 @@ class DbConnection:
                                                                     AsyncIOMotorDatabase,
                                                                     AsyncIOMotorCollection]:
         """
-        Создаем подключение к Базе данных. Если параметры не заданы - значит заполняем поля самого объекта.
+        Создаем подключение к Базе данных. Если параметры не заданы - значит заполняем поля самого объекта
         :param client_uri:
         :param db_name:
         :param collection_name:
-        :return:
+        :return: Подключение к Клиенту - `client`, объект БД - `db`, объект Коллекции - `collection`
         """
         if client_uri:
             client = AsyncIOMotorClient(client_uri)
